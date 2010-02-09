@@ -1,0 +1,17 @@
+[service]
+host=idek.net
+authorized=no
+encode=base64
+wrapper=valid-url
+
+[store]
+endpoint=/shorten/
+method=get
+urlparam=idek-url
+otherparams=idek-api:true
+response=entire-response-body
+
+[fetch]
+endpoint=/
+method=get
+response=location-header
