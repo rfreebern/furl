@@ -1,0 +1,20 @@
+[service]
+host=linkfrog.net
+authorized=no
+encode=base64
+wrapper=valid-url
+max-chunk-size=4096
+
+[store]
+endpoint=/
+method=get
+urlparam=fullurl
+otherparams=rnd:#rand/100000000\,999999999
+response=scrape
+scraper=/10px;"><a href="(.*?)" style/ism
+
+[fetch]
+endpoint=/
+method=get
+response=scrape
+scraper=/frame name="page" src="(.*?)">/ism

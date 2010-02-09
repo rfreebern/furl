@@ -1,0 +1,17 @@
+[service]
+host=linkzip.net
+authorized=no
+encode=base64
+wrapper=valid-url
+
+[store]
+endpoint=/cgi-local/portal.cgi
+method=get
+urlparam=h
+response=scrape
+scraper=/Short URL::&nbsp;<td><a href="(.*?)">/ism
+
+[fetch]
+endpoint=/
+method=get
+response=location-header

@@ -1,0 +1,19 @@
+[service]
+host=href.to
+authorized=no
+encode=base64
+wrapper=valid-url
+max-chunk-size=666
+
+[store]
+endpoint=/api.php
+method=get
+urlparam=url
+response=scrape
+scraper=/readonly" value='(.*?)'>/ism
+
+[fetch]
+endpoint=/
+method=get
+response=scrape
+scraper=/refresh" content="\d+; URL=(.*?)">/ism
