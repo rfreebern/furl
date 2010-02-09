@@ -1,0 +1,16 @@
+#!/usr/bin/php
+<?php
+
+error_reporting(E_ERROR | E_USER_ERROR);
+
+if ($argc > 1) $url = $argv[1];
+else die("Usage: ".__FILE__." URL\n");
+
+require('./furl.classes.php');
+
+$f = new Furler();
+$f->unfurl($url);
+
+exit;
+
+?>
