@@ -22,12 +22,12 @@ class Furler {
         $this->Services = array();
         $this->loadServices($serviceDirectory);
     }
-    
+
     function furl ($something) {
     	if (file_exists($something)) return $this->furlFile($something);
     	else return $this->furlData($something);
     }
-    
+
     function furlData ($data) {
     	// Not yet implemented.
     }
@@ -442,6 +442,8 @@ class FurlService {
     }
 
     function store ($chunk) {
+    	trigger_error("Attempting to use service " . $this->Name . " to store chunk", E_USER_NOTICE);
+
         // Encode
         $encodeMethod = $this->getConfigOption('service', 'encode');
         if (!$encodeMethod) $encodeMethod = 'none';
@@ -607,11 +609,11 @@ class FurlService {
 
         return $data;
     }
-    
+
     function smartParam ($value) {
     	$value = str_replace('\\', '', ltrim($value, '#'));
     	list($command, $params) = explode('/', $value);
-    	
+
     	$return_value = null;
     	switch ($command) {
     	    case 'random':
@@ -621,7 +623,7 @@ class FurlService {
     	        $return_value = rand($min, $max);
     	        break;
     	}
-    	
+
     	return $return_value;
     }
 
@@ -735,11 +737,13 @@ class FurlWrapper_ValidURL {
 class FurlHTTP {
 
     function get ($uri, $host = null, $port = 80) {
+        trigger_error("Getting $uri from $host:$port", E_USER_NOTICE);
+
         $fp = false;
         $attempts = 5;
         while (!$fp and $attempts) {
             $fp = fsockopen($host, $port, $errno, $errstr, 3);
-            if (!$fp) {
+            if (!$fp or $errno) {
                 trigger_error("Failed to connect to server $host on port $port. Error number $errno, message $errstr", E_USER_WARNING);
                 $attempts--;
             }
@@ -749,6 +753,8 @@ class FurlHTTP {
             return 'BADSERVICE';
         }
 
+        fputs($fp, "GET $uri HTTP/1.0\r\nHost: $host\r\nConnection: close\r\n\r\n");
+
         $ret = '';
         while (!feof($fp)) $ret .= fgets($fp, 1024);
         fclose($fp);
@@ -757,15 +763,18 @@ class FurlHTTP {
             trigger_error("No response. Error number $errno, message $errstr.", E_USER_WARNING);
             return 'BADSERVICE';
         }
+
         return $ret;
     }
 
     function post ($uri, $host = null, $port = 80) {
+        trigger_error("Posting $uri to $host:$port", E_USER_NOTICE);
+
         $fp = false;
         $attempts = 5;
         while (!$fp and $attempts) {
             $fp = fsockopen($host, $port, $errno, $errstr, 3);
-            if (!$fp) {
+            if (!$fp or $errno) {
                 trigger_error("Failed to connect to server $host on port $port. Error number $errno, message $errstr", E_USER_WARNING);
                 $attempts--;
             }
