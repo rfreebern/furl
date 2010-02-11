@@ -353,10 +353,11 @@ class FurlService {
     var $Host;
     var $MaxChunkSize;
     var $Config;
+    var $Valid;
 
     function FurlService ($serviceFile) {
         $this->Config = array();
-        return $this->readConfigFile($serviceFile);
+        $this->Valid = $this->readConfigFile($serviceFile);
     }
 
     function readConfigFile ($service) {
@@ -445,27 +446,19 @@ class FurlService {
     	trigger_error("Attempting to use service " . $this->Name . " to store chunk", E_USER_NOTICE);
 
         // Encode
-        $encodeMethod = $this->getConfigOption('service', 'encode');
-        if (!$encodeMethod) $encodeMethod = 'none';
-        switch ($encodeMethod) {
-            case 'base64': $chunk = FurlEncoder_Base64::encode($chunk); break;
-            case 'none': break;
-            default:
-                trigger_error("No encoder for method $encodeMethod.", E_USER_ERROR);
-                return false;
-                break;
+        $chunk = $this->encodeData($chunk);
+
+        if (!$chunk) {
+            trigger_error("Failed to encode data chunk for storage on $host", E_USER_WARNING);
+            return false;
         }
 
         // Wrap
-        $wrapMethod = $this->getConfigOption('service', 'wrapper');
-        if (!$wrapMethod) $wrapMethod = 'none';
-        switch ($wrapMethod) {
-            case 'valid-url': $chunk = FurlWrapper_ValidURL::wrap($chunk); break;
-            case 'none': break;
-            default:
-                trigger_error("No wrapper for method $wrapMethod.", E_USER_ERROR);
-                return false;
-                break;
+        $chunk = $this->wrapData($chunk);
+
+        if (!$chunk) {
+            trigger_error("Failed to wrap data chunk for storage on $host", E_USER_WARNING);
+            return false;
         }
 
         if (!empty($this->MaxChunkSize) and strlen($chunk) > $this->MaxChunkSize) {
@@ -477,6 +470,130 @@ class FurlService {
         $host = $this->Host;
         $port = 80;
 
+        $uri = $this->buildQueryString($chunk);
+
+        $method = $this->getConfigOption('store', 'method');
+        if ($method != 'get' and $method != 'post') $method = 'get';
+        $response = FurlHTTP::$method($uri, $host, $port);
+
+        // Report
+        if (!$response) {
+            trigger_error("Failed to store data chunk on $host", E_USER_WARNING);
+            return false;
+        }
+
+        $url = $this->parseStoreResponse($response);
+
+        // Make sure this looks like an actual valid URL.
+        if (filter_var($url, FILTER_VALIDATE_URL, FILTER_FLAG_SCHEME_REQUIRED)) return $url;
+        else {
+            trigger_error("Response from $host does not appear to be a valid URL.", E_USER_WARNING);
+            return 'BADSERVICE';
+        }
+    }
+
+    function fetch ($url) {
+        // Submit request
+        $host = $this->Host;
+        $port = 80;
+
+        $uri = str_replace("http://$host", '', $url);
+        $response = FurlHTTP::get("$uri", $host, $port);
+
+        // Report
+        if (!$response) {
+            trigger_error("Failed to fetch data chunk from $host", E_USER_WARNING);
+            return false;
+        }
+
+        // Parse
+        $data = $this->parseFetchResponse($response);
+
+        if (!$data) {
+            trigger_error("Failed to find data chunk in response from $host", E_USER_WARNING);
+            return false;
+        }
+
+        // Unwrap
+        $data = $this->unwrapData($data);
+
+        if (!$data) {
+            trigger_error("Failed to unwrap data chunk in response from $host", E_USER_WARNING);
+            return false;
+        }
+
+        // Decode
+        $data = $this->decodeData($data);
+
+        if (!$data) {
+            trigger_error("Failed to decode data chunk in response from $host", E_USER_WARNING);
+            return false;
+        }
+
+        return $data;
+    }
+
+    function wrapData ($data) {
+        $wrapMethod = $this->getConfigOption('service', 'wrapper');
+        if (!$wrapMethod) $wrapMethod = 'none';
+        switch ($wrapMethod) {
+            case 'valid-url': $data = FurlWrapper_ValidURL::wrap($data); break;
+            case 'none': break;
+            default:
+                trigger_error("No wrapper for method $wrapMethod.", E_USER_ERROR);
+                return false;
+                break;
+        }
+
+        return $data;
+    }
+
+    function unwrapData ($data) {
+        $wrapMethod = $this->getConfigOption('service', 'wrapper');
+        if (!$wrapMethod) $wrapMethod = 'none';
+        switch ($wrapMethod) {
+            case 'valid-url': $data = FurlWrapper_ValidURL::unwrap($data); break;
+            case 'none': break;
+            default:
+                trigger_error("No wrapper for method $wrapMethod.", E_USER_ERROR);
+                return false;
+                break;
+        }
+
+        return $data;
+    }
+
+    function encodeData ($data) {
+        $encodeMethod = $this->getConfigOption('service', 'encode');
+        if (!$encodeMethod) $encodeMethod = 'none';
+        switch ($encodeMethod) {
+            case 'base64': $data = FurlEncoder_Base64::encode($data); break;
+            case 'none': break;
+            default:
+                trigger_error("No encoder for method $encodeMethod.", E_USER_ERROR);
+                return false;
+                break;
+        }
+
+        return $data;
+    }
+
+    function decodeData ($data) {
+        $decodeMethod = $this->getConfigOption('service', 'encode');
+        if (!$decodeMethod) $decodeMethod = 'none';
+        switch ($decodeMethod) {
+            case 'base64': $data = FurlEncoder_Base64::decode($data); break;
+            case 'none': break;
+            default:
+                trigger_error("No encoder for method $encodeMethod.", E_USER_ERROR);
+                return false;
+                break;
+        }
+
+        return $data;
+    }
+
+    function buildQueryString ($data) {
         $endpoint = $this->getConfigOption('store', 'endpoint');
         $urlparam = $this->getConfigOption('store', 'urlparam');
         $otherparams = $this->getConfigOption('store', 'otherparams');
@@ -490,19 +607,11 @@ class FurlService {
                 $all_params[] = urlencode($param) . '=' . urlencode($value);
             }
         }
-        $all_params[] = urlencode($urlparam) . '=' . urlencode($chunk);
-        $querystring = implode('&', $all_params);
+        $all_params[] = urlencode($urlparam) . '=' . urlencode($data);
+        return $endpoint . '?' . implode('&', $all_params);
+    }
 
-        $method = $this->getConfigOption('store', 'method');
-        if ($method != 'get' and $method != 'post') $method = 'get';
-        $response = FurlHTTP::$method("$endpoint?$querystring", $host, $port);
-
-        // Report
-        if (!$response) {
-            trigger_error("Failed to store data chunk on $host", E_USER_WARNING);
-            return false;
-        }
-
+    function parseStoreResponse ($response) {
         list($headers, $body) = explode("\r\n\r\n", $response, 2);
 
         if (empty($headers) or empty($body)) {
@@ -529,28 +638,10 @@ class FurlService {
                 break;
         }
 
-        // Make sure this looks like an actual valid URL.
-        if (filter_var($url, FILTER_VALIDATE_URL, FILTER_FLAG_SCHEME_REQUIRED)) return $url;
-        else {
-            trigger_error("Response from $host does not appear to be a valid URL.", E_USER_WARNING);
-            return 'BADSERVICE';
-        }
+        return $url;
     }
 
-    function fetch ($url) {
-        // Submit request
-        $host = $this->Host;
-        $port = 80;
-
-        $uri = str_replace("http://$host", '', $url);
-        $response = FurlHTTP::get("$uri", $host, $port);
-
-        // Report
-        if (!$response) {
-            trigger_error("Failed to fetch data chunk from $host", E_USER_WARNING);
-            return false;
-        }
-
+    function parseFetchResponse ($response) {
         list($headers, $body) = explode("\r\n\r\n", $response, 2);
 
         $header_data = explode("\r\n", $headers);
@@ -578,35 +669,6 @@ class FurlService {
                 break;
         }
 
-        if (!$data) {
-            trigger_error("Failed to find data chunk in response from $host", E_USER_WARNING);
-            return false;
-        }
-
-        // Unwrap
-        $wrapMethod = $this->getConfigOption('service', 'wrapper');
-        if (!$wrapMethod) $wrapMethod = 'none';
-        switch ($wrapMethod) {
-            case 'valid-url': $data = FurlWrapper_ValidURL::unwrap($data); break;
-            case 'none': break;
-            default:
-                trigger_error("No wrapper for method $wrapMethod.", E_USER_ERROR);
-                return false;
-                break;
-        }
-
-        // Decode
-        $decodeMethod = $this->getConfigOption('service', 'encode');
-        if (!$decodeMethod) $decodeMethod = 'none';
-        switch ($decodeMethod) {
-            case 'base64': $data = FurlEncoder_Base64::decode($data); break;
-            case 'none': break;
-            default:
-                trigger_error("No encoder for method $encodeMethod.", E_USER_ERROR);
-                return false;
-                break;
-        }
-
         return $data;
     }
 
@@ -627,6 +689,54 @@ class FurlService {
     	return $return_value;
     }
 
+    function test () {
+        // Submit
+        $host = $this->Host;
+        $port = 80;
+
+        $uri = $this->buildQueryString('http://www.google.com');
+
+        $method = $this->getConfigOption('store', 'method');
+        if ($method != 'get' and $method != 'post') $method = 'get';
+        $response = FurlHTTP::$method($uri, $host, $port);
+
+        // Report
+        if (!$response) {
+            trigger_error("Failed to store test URL on $host", E_USER_WARNING);
+            return false;
+        }
+
+        $url = $this->parseStoreResponse($response);
+
+        // Make sure this looks like an actual valid URL.
+        if (filter_var($url, FILTER_VALIDATE_URL, FILTER_FLAG_SCHEME_REQUIRED)) return $url;
+        else {
+            trigger_error("Response from $host does not appear to be a valid URL.", E_USER_WARNING);
+            return false;
+        }
+
+        // Verify that this shortened URL decodes to what we expect.
+        $host = $this->Host;
+        $port = 80;
+
+        $uri = str_replace("http://$host", '', $url);
+        $response = FurlHTTP::get("$uri", $host, $port);
+
+        // Report
+        if (!$response) {
+            trigger_error("Failed to fetch test URL from $host", E_USER_WARNING);
+            return false;
+        }
+
+        $data = $this->parseFetchResponse($response);
+
+        if (!$data or $data != 'http://www.google.com') {
+            trigger_error("Failed to find test URL in response from $host", E_USER_WARNING);
+            return false;
+        }
+
+        return true;
+    }
 }
 
 // A furl encoder takes a chunk of raw data and encodes it to fit the storage parameters of a furl service.

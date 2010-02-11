@@ -3,14 +3,47 @@
 
 error_reporting(E_ERROR | E_USER_ERROR);
 
-if ($argc > 1) $file = $argv[1];
-else die("Usage: ".__FILE__." file\n");
-
 require('./furl.classes.php');
 
-$f = new Furler();
-$f->furl($file);
+if ($argc > 1) {
+    for ($i = 1; $i < $argc; $i++) {
+    	$arg = ltrim($argv[$i], '-');
+    	switch ($arg) {
+    	    case 'test':
+    	        $service = $argv[++$i];
+    	        
+    	        $s = new FurlService($service);
+    	        if ($s->Valid) {
+    	            $result = $s->test();
+    	            if ($result) print "Service {$s->Name} passed.\n";
+    	            else print "Service {$s->Name} failed.\n";
+    	        } else print "$service is not a valid service.\n";
+    	        
+    	        break;
+    	    default:
+    	        // Assume this is a file that is being furled.
+    	        $f = new Furler();
+    	        $f->furl($arg);
+    	        
+    	        break;
+    	}
+    }
+} else die(usage());
 
 exit;
+
+function usage () {
+    $this_file = __FILE__;
+    print <<<EOT
+Usage: $this_file [OPTIONS] [FILENAME]
+
+Options:
+    --test SERVICE_DEFINITION_FILE
+        Test storing/fetching URLs with the specified service.
+
+If no options are given, will attempt to furl the specified file.
+
+EOT;
+}
 
 ?>
