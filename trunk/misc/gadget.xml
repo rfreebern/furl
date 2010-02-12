@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Module>
+    <ModulePrefs title="Furl Info" description="Furl Info bookmarklet" title_url="http://code.google.com/p/furl/" height="30" author="Ryan Freebern" author_email="ryan@freebern.org" />
+    <Content type="html"><![CDATA[
+<a href="javascript:(function(){d=atob(unescape(location.href.split(location.href.substr(-6))[1]));t=d.charAt(0);d=d.substr(1);p=d.split(';');v=document.createElement('div');v.style.zIndex=9999;v.style.background='white';v.style.padding='1em';v.style.border='1px%20black%20solid';v.style.position='fixed';v.style.top='50px';v.style.left='50px';v.style.textAlign='left';v.onclick=function(){document.body.removeChild(v);};if(t=='C'){v.innerHTML='Furl%20contains%20gzip%20compressed%20data.';}else%20if(t=='I'){v.innerHTML='Filename:%20'+p.shift()+'<br/>MD5:%20'+p.shift()+'<br/><br/>Parts:<br/>';for(l%20in%20p){a=document.createElement('a');a.setAttribute('href','http://'+p[l]);t=document.createTextNode('http://'+p[l]);a.appendChild(t);v.appendChild(a);b=document.createElement('br');v.appendChild(b);}}else%20if(t=='D'){v.innerHTML='Raw%20furl%20data:<br/><br/><pre>'+d+'</pre>';}v.innerHTML+='<br/>Click%20to%20dismiss.';document.body.appendChild(v);})();"><strong>Furl Info</strong></a>
+]]></Content>
+</Module>
